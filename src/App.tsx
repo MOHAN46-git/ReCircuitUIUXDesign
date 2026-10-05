@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 
+type Role = "seller" | "buyer";
+
 type IconName =
   | "home"
   | "scan"
@@ -87,7 +89,7 @@ function Logo() {
   );
 }
 
-function Sidebar({ view, go }: { view: string; go: (view: string) => void }) {
+function Sidebar({ view, go, role, signOut }: { view: string; go: (view: string) => void; role: Role; signOut: () => void }) {
   const items: [string, IconName, string][] = [
     ["home", "home", "Dashboard"],
     ["marketplace", "market", "Marketplace"],
@@ -106,17 +108,18 @@ function Sidebar({ view, go }: { view: string; go: (view: string) => void }) {
           </button>
         ))}
         <p className="nav-label nav-label-spaced">Manage</p>
-        <button className="nav-item"><Icon name="box" /><span>My components</span><b>12</b></button>
+        <button className="nav-item"><Icon name="box" /><span>{role === "seller" ? "My listings" : "My components"}</span><b>12</b></button>
         <button className="nav-item"><Icon name="cart" /><span>Orders</span></button>
+        {role === "seller" && <button className="nav-item"><Icon name="wallet" /><span>Revenue</span></button>}
       </nav>
       <div className="sidebar-foot">
-        <button className="profile-row"><span className="avatar">AM</span><span><strong>Alex Morgan</strong><small>Maker account</small></span><Icon name="arrow" className="size-4" /></button>
+        <button className="profile-row" onClick={signOut} title="Sign out"><span className="avatar">AM</span><span><strong>Alex Morgan</strong><small>{role === "seller" ? "Seller account" : "Buyer account"} · Sign out</small></span><Icon name="arrow" className="size-4" /></button>
       </div>
     </aside>
   );
 }
 
-function Topbar({ openScan }: { openScan: () => void }) {
+function Topbar({ openScan, role }: { openScan: () => void; role: Role }) {
   return (
     <header className="topbar">
       <div className="mobile-logo"><Logo /></div>
@@ -127,7 +130,7 @@ function Topbar({ openScan }: { openScan: () => void }) {
       </label>
       <div className="top-actions">
         <button className="icon-button" aria-label="Notifications"><Icon name="bell" /><span className="notification-dot" /></button>
-        <Button onClick={openScan} className="top-scan"><Icon name="scan" />Scan component</Button>
+        <Button onClick={openScan} className="top-scan"><Icon name="scan" />{role === "seller" ? "Add listing" : "Scan component"}</Button>
       </div>
     </header>
   );
@@ -160,19 +163,21 @@ function ProjectCard({ project, open }: { project: typeof projects[number]; open
   );
 }
 
-function Dashboard({ openScan, goProjects, openProject }: { openScan: () => void; goProjects: () => void; openProject: () => void }) {
+function Dashboard({ openScan, goProjects, openProject, role }: { openScan: () => void; goProjects: () => void; openProject: () => void; role: Role }) {
+  const isSeller = role === "seller";
   return (
     <>
       <section className="hero">
         <div className="hero-copy">
-          <span className="eyebrow"><Icon name="spark" className="size-4" /> Make something useful today</span>
-          <h1>Give every component<br /><em>another circuit.</em></h1>
-          <p>Turn spare electronics into useful builds. Scan what you have, find what it can become, and source only what’s missing.</p>
+          <span className="role-chip">{isSeller ? "Seller workspace" : "Buyer workspace"}</span>
+          <span className="eyebrow"><Icon name="spark" className="size-4" /> {isSeller ? "Put spare parts back to work" : "Make something useful today"}</span>
+          <h1>{isSeller ? <>List a component.<br /><em>Enable a new build.</em></> : <>Give every component<br /><em>another circuit.</em></>}</h1>
+          <p>{isSeller ? "Identify, list, and hand over spare electronics with confidence. We’ll connect each part to makers who can use it." : "Turn spare electronics into useful builds. Scan what you have, find what it can become, and source only what’s missing."}</p>
           <div className="hero-actions">
-            <Button onClick={openScan}><Icon name="scan" />Scan / Add Component</Button>
-            <Button onClick={goProjects} variant="secondary">Find a Project <Icon name="arrow" /></Button>
+            <Button onClick={openScan}><Icon name="scan" />{isSeller ? "Scan / Add Listing" : "Scan / Add Component"}</Button>
+            <Button onClick={goProjects} variant="secondary">{isSeller ? "See project demand" : "Find a Project"} <Icon name="arrow" /></Button>
           </div>
-          <span className="microcopy"><Icon name="leaf" className="size-4" /> Reuse first. Buy only what you need.</span>
+          <span className="microcopy"><Icon name="leaf" className="size-4" /> {isSeller ? "Every accurate listing helps another maker reuse." : "Reuse first. Buy only what you need."}</span>
         </div>
         <div className="hero-image">
           <img src={photo} alt="Circuit boards and electronic components on a maker workbench" />
@@ -183,30 +188,143 @@ function Dashboard({ openScan, goProjects, openProject }: { openScan: () => void
       </section>
 
       <section aria-labelledby="impact-heading" className="section-block">
-        <div className="section-heading compact"><div><span className="overline">Your circular impact</span><h2 id="impact-heading">Small parts. Real progress.</h2></div><button>View impact report <Icon name="arrow" className="size-4" /></button></div>
+        <div className="section-heading compact"><div><span className="overline">{isSeller ? "Your seller overview" : "Your circular impact"}</span><h2 id="impact-heading">{isSeller ? "Your components are in demand." : "Small parts. Real progress."}</h2></div><button>{isSeller ? "View seller report" : "View impact report"} <Icon name="arrow" className="size-4" /></button></div>
         <div className="stats-grid">
-          {[
+          {(isSeller ? [
+            ["box", "Active listings", "12", "3 viewed today", "mint"],
+            ["scale", "Waste diverted", "3.26 kg", "Estimated by item mass", "yellow"],
+            ["cart", "Orders & rentals", "7", "2 awaiting handover", "blue"],
+            ["wallet", "Revenue earned", "$248", "+$62 this month", "peach"],
+          ] : [
             ["box", "Components reused", "12", "+3 this month", "mint"],
             ["scale", "Waste diverted", "1.84 kg", "Estimated by item mass", "yellow"],
             ["wrench", "Projects enabled", "4", "2 in progress", "blue"],
             ["wallet", "Saved by reuse", "$86", "vs. typical new prices", "peach"],
-          ].map(([icon, label, value, note, color]) => (
+          ]).map(([icon, label, value, note, color]) => (
             <article className="stat-card" key={label}><span className={`stat-icon ${color}`}><Icon name={icon as IconName} /></span><div><p>{label}</p><strong>{value}</strong><small>{note}</small></div></article>
           ))}
         </div>
       </section>
 
       <section aria-labelledby="matches-heading" className="section-block">
-        <div className="section-heading"><div><span className="overline">Based on your components</span><h2 id="matches-heading">Ready-to-build matches</h2><p>Feasibility considers parts you own, required tools, and build complexity.</p></div><button onClick={goProjects}>Browse all projects <Icon name="arrow" className="size-4" /></button></div>
+        <div className="section-heading"><div><span className="overline">{isSeller ? "Demand for your listings" : "Based on your components"}</span><h2 id="matches-heading">{isSeller ? "Projects your parts can enable" : "Ready-to-build matches"}</h2><p>{isSeller ? "See where listed components fit and which parts makers are searching for." : "Feasibility considers parts you own, required tools, and build complexity."}</p></div><button onClick={goProjects}>Browse all projects <Icon name="arrow" className="size-4" /></button></div>
         <div className="project-grid">{projects.map((project) => <ProjectCard key={project.title} project={project} open={openProject} />)}</div>
       </section>
 
       <section className="workbench-banner">
         <span className="banner-icon"><Icon name="camera" /></span>
-        <div><span className="overline">Your workbench is waiting</span><h2>Found a loose component?</h2><p>Scan it in seconds. We’ll identify it, explain the result, and show what you can build.</p></div>
-        <Button onClick={openScan}>Scan your first part <Icon name="arrow" /></Button>
+        <div><span className="overline">{isSeller ? "Grow your circular shop" : "Your workbench is waiting"}</span><h2>{isSeller ? "Have another part to pass on?" : "Found a loose component?"}</h2><p>{isSeller ? "Scan it, confirm its condition, and publish it for sale, rental, or donation." : "Scan it in seconds. We’ll identify it, explain the result, and show what you can build."}</p></div>
+        <Button onClick={openScan}>{isSeller ? "Create a listing" : "Scan your first part"} <Icon name="arrow" /></Button>
       </section>
     </>
+  );
+}
+
+function AuthPage({ onContinue }: { onContinue: () => void }) {
+  const [mode, setMode] = useState<"login" | "signup">("signup");
+  const [profileFile, setProfileFile] = useState("");
+  const [idFile, setIdFile] = useState("");
+  return (
+    <main className="auth-page">
+      <section className="auth-story">
+        <Logo />
+        <div className="auth-story-copy">
+          <span className="eyebrow light"><Icon name="leaf" className="size-4" /> Circular electronics, made practical</span>
+          <h1>Every spare part has a <em>next project.</em></h1>
+          <p>Join makers and sellers keeping useful electronics in circulation—and out of the waste stream.</p>
+          <div className="auth-proof">
+            <span><Icon name="scan" /><strong>Identify</strong><small>Scan loose components</small></span>
+            <span><Icon name="projects" /><strong>Match</strong><small>Discover useful builds</small></span>
+            <span><Icon name="impact" /><strong>Reuse</strong><small>Track diverted mass</small></span>
+          </div>
+        </div>
+        <p className="auth-quote">“Build with what exists before buying what’s new.”</p>
+      </section>
+      <section className="auth-form-wrap">
+        <div className="auth-mobile-logo"><Logo /></div>
+        <form className="auth-card" onSubmit={(event) => { event.preventDefault(); onContinue(); }}>
+          <span className="auth-kicker">{mode === "signup" ? "New to ReCircuit" : "Welcome back"}</span>
+          <h2>{mode === "signup" ? "Create your profile" : "Log in to ReCircuit"}</h2>
+          <p>{mode === "signup" ? "Tell us a little about you before choosing your marketplace role." : "Enter your registered email and password to continue."}</p>
+          <div className="auth-tabs" role="tablist" aria-label="Authentication method">
+            <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Sign up</button>
+            <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log in</button>
+          </div>
+          {mode === "signup" ? (
+            <>
+              <div className="profile-upload-row">
+                <label className="avatar-upload">
+                  <input type="file" accept="image/*" capture="user" onChange={(event) => setProfileFile(event.target.files?.[0]?.name ?? "")} />
+                  <span>{profileFile ? <Icon name="check" /> : <Icon name="camera" />}</span>
+                  <strong>{profileFile ? "Photo added" : "Add profile photo"}</strong>
+                  <small>{profileFile || "Capture or upload"}</small>
+                </label>
+                <div className="upload-guidance"><strong>Your maker profile</strong><p>A clear photo helps build trust during local handovers.</p><span>JPG or PNG · Testing profile only</span></div>
+              </div>
+              <div className="form-grid">
+                <label className="field-label full-field">Full name<input required placeholder="Alex Morgan" autoComplete="name" /></label>
+                <label className="field-label">Date of birth<input required type="date" autoComplete="bday" /></label>
+                <label className="field-label">Gender<select required defaultValue=""><option value="" disabled>Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label>
+                <label className="field-label">Profession<input required placeholder="Electronics engineer" autoComplete="organization-title" /></label>
+                <label className="field-label">Organization<input required placeholder="Organization or independent" autoComplete="organization" /></label>
+                <label className="field-label">Mobile number<input required type="tel" placeholder="+1 555 012 3456" autoComplete="tel" /></label>
+                <label className="field-label">Email address<input required type="email" placeholder="alex@example.com" autoComplete="email" /></label>
+                <label className="field-label full-field">Password<input required type="password" placeholder="At least 8 characters" minLength={8} autoComplete="new-password" /></label>
+                <label className="field-label full-field">Address<textarea required placeholder="Street, city, state, postal code" autoComplete="street-address" /></label>
+              </div>
+              <label className={`id-upload ${idFile ? "uploaded" : ""}`}>
+                <input type="file" accept="image/*,.pdf" onChange={(event) => setIdFile(event.target.files?.[0]?.name ?? "")} />
+                <span><Icon name={idFile ? "check" : "box"} /></span>
+                <div><strong>{idFile ? "Test ID proof attached" : "Upload ID proof"}</strong><small>{idFile || "Demo verification only · Use a fake document for testing"}</small></div>
+                <em>{idFile ? "Replace" : "Choose file"}</em>
+              </label>
+              <div className="test-data-note"><Icon name="info" /><span><strong>Prototype notice:</strong> Do not upload a real identity document. This field is for fake testing data only.</span></div>
+            </>
+          ) : (
+            <div className="login-fields">
+              <button type="button" className="social-button"><span>G</span>Continue with Google</button>
+              <div className="auth-divider"><span>or use email</span></div>
+              <label className="field-label">Email address<input required type="email" placeholder="alex@example.com" autoComplete="email" /></label>
+              <label className="field-label">Password<input required type="password" placeholder="Enter your password" minLength={8} autoComplete="current-password" /></label>
+              <button type="button" className="forgot-button">Forgot password?</button>
+            </div>
+          )}
+          <Button className="full-button">{mode === "signup" ? "Create profile & choose role" : "Log in"}<Icon name="arrow" /></Button>
+          <p className="auth-switch">{mode === "signup" ? "Already registered?" : "Need a ReCircuit profile?"}<button type="button" onClick={() => setMode(mode === "signup" ? "login" : "signup")}>{mode === "signup" ? "Log in" : "Sign up"}</button></p>
+          <small className="legal-copy">By continuing, you agree to ReCircuit’s Terms and Privacy Policy.</small>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function RolePage({ selectRole, back }: { selectRole: (role: Role) => void; back: () => void }) {
+  const [selected, setSelected] = useState<Role | null>(null);
+  return (
+    <main className="role-page">
+      <header className="role-header"><Logo /><button onClick={back}>Sign out</button></header>
+      <section className="role-content">
+        <span className="step-count">Step 2 of 2</span>
+        <h1>How will you use ReCircuit?</h1>
+        <p>Choose a starting workspace. You can switch roles later from your profile.</p>
+        <div className="role-grid">
+          <button className={`role-card buyer-card ${selected === "buyer" ? "selected" : ""}`} onClick={() => setSelected("buyer")}>
+            <span className="role-visual"><Icon name="wrench" className="size-8" /><i><Icon name="search" /></i></span>
+            <span className="role-copy"><small>Build & source</small><strong>I’m a buyer / maker</strong><em>Find projects for parts you own, then source only what’s missing.</em></span>
+            <span className="role-check"><Icon name="check" className="size-4" /></span>
+            <ul><li><Icon name="check" />Match components to projects</li><li><Icon name="check" />Buy, rent, or claim parts</li><li><Icon name="check" />Track reuse savings</li></ul>
+          </button>
+          <button className={`role-card seller-card ${selected === "seller" ? "selected" : ""}`} onClick={() => setSelected("seller")}>
+            <span className="role-visual"><Icon name="box" className="size-8" /><i><Icon name="market" /></i></span>
+            <span className="role-copy"><small>List & circulate</small><strong>I’m a seller</strong><em>Give spare components a second life through sales, rentals, or donations.</em></span>
+            <span className="role-check"><Icon name="check" className="size-4" /></span>
+            <ul><li><Icon name="check" />AI-assisted component listings</li><li><Icon name="check" />Manage orders and handovers</li><li><Icon name="check" />Track revenue and impact</li></ul>
+          </button>
+        </div>
+        <Button onClick={() => selected && selectRole(selected)} className={`role-continue ${selected ? "" : "disabled-button"}`}>Continue to my workspace <Icon name="arrow" /></Button>
+        <span className="role-hint"><Icon name="info" className="size-4" />Not sure? Choose buyer if you primarily want to build projects.</span>
+      </section>
+    </main>
   );
 }
 
@@ -307,16 +425,20 @@ function MobileNav({ view, go, openScan }: { view: string; go: (view: string) =>
 }
 
 export default function App() {
+  const [stage, setStage] = useState<"auth" | "role" | "app">("auth");
+  const [role, setRole] = useState<Role>("buyer");
   const [view, setView] = useState("home");
   const [scanOpen, setScanOpen] = useState(false);
   const openProject = () => setView("detail");
+  if (stage === "auth") return <AuthPage onContinue={() => setStage("role")} />;
+  if (stage === "role") return <RolePage back={() => setStage("auth")} selectRole={(nextRole) => { setRole(nextRole); setView("home"); setStage("app"); }} />;
   return (
-    <div className="app-shell">
-      <Sidebar view={view} go={setView} />
+    <div className={`app-shell role-${role}`}>
+      <Sidebar view={view} go={setView} role={role} signOut={() => setStage("auth")} />
       <div className="main-shell">
-        <Topbar openScan={() => setScanOpen(true)} />
+        <Topbar openScan={() => setScanOpen(true)} role={role} />
         <main>
-          {view === "home" && <Dashboard openScan={() => setScanOpen(true)} goProjects={() => setView("projects")} openProject={openProject} />}
+          {view === "home" && <Dashboard role={role} openScan={() => setScanOpen(true)} goProjects={() => setView("projects")} openProject={openProject} />}
           {view === "projects" && <Projects openProject={openProject} />}
           {view === "detail" && <ProjectDetail back={() => setView("projects")} />}
           {!["home", "projects", "detail"].includes(view) && <Placeholder title={view.charAt(0).toUpperCase() + view.slice(1)} />}
