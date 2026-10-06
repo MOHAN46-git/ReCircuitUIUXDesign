@@ -1,4 +1,11 @@
-import { useState, type ReactNode } from "react";
+import CloudApp from './integration/CloudApp';
+import {supabase} from './integration/supabase';
+import { EWaste } from './EWaste';
+import { ProjectLibrary, SellerHome } from './ProjectLibrary';
+import { Products, Orders, Revenue, Components } from './Marketplace';
+import { initialMarket, publish, reserve, confirm, cancel, revenue, type Market } from './market';
+import { Assistant, ComponentCapture, Impact, ProfileEditor, emptyProfile, type Profile } from "./SellerFeatures";
+import { useEffect, useState, type ReactNode } from "react";
 
 type Role = "seller" | "buyer";
 
@@ -89,13 +96,15 @@ function Logo() {
   );
 }
 
-function Sidebar({ view, go, role, signOut }: { view: string; go: (view: string) => void; role: Role; signOut: () => void }) {
+export function Sidebar({ view, go, role, signOut }: { view: string; go: (view: string) => void; role: Role; signOut: () => void }) {
   const items: [string, IconName, string][] = [
     ["home", "home", "Dashboard"],
     ["marketplace", "market", "Marketplace"],
     ["projects", "projects", "Projects"],
     ["assistant", "spark", "AI Assistant"],
     ["impact", "impact", "Impact"],
+    ["profile", "user", "Profile"],
+    ["rentals", "box", "Rentals"], ["donations", "leaf", "Donations"], ["ewaste", "scale", "E-Waste"], ["history", "box", "History"], ["handover", "check", "Handover"],
   ];
   return (
     <aside className="sidebar">
@@ -108,9 +117,9 @@ function Sidebar({ view, go, role, signOut }: { view: string; go: (view: string)
           </button>
         ))}
         <p className="nav-label nav-label-spaced">Manage</p>
-        <button className="nav-item"><Icon name="box" /><span>{role === "seller" ? "My listings" : "My components"}</span><b>12</b></button>
-        <button className="nav-item"><Icon name="cart" /><span>Orders</span></button>
-        {role === "seller" && <button className="nav-item"><Icon name="wallet" /><span>Revenue</span></button>}
+        <button className="nav-item" onClick={() => go(role === "seller" ? "listings" : "components")}><Icon name="box" /><span>{role === "seller" ? "My listings" : "My components"}</span></button>
+        <button className="nav-item" onClick={() => go("orders")}><Icon name="cart" /><span>Orders</span></button>
+        {role === "seller" && <button className="nav-item" onClick={() => go("revenue")}><Icon name="wallet" /><span>Revenue</span></button>}
       </nav>
       <div className="sidebar-foot">
         <button className="profile-row" onClick={signOut} title="Sign out"><span className="avatar">AM</span><span><strong>Alex Morgan</strong><small>{role === "seller" ? "Seller account" : "Buyer account"} · Sign out</small></span><Icon name="arrow" className="size-4" /></button>
@@ -119,7 +128,7 @@ function Sidebar({ view, go, role, signOut }: { view: string; go: (view: string)
   );
 }
 
-function Topbar({ openScan, role }: { openScan: () => void; role: Role }) {
+export function Topbar({ openScan, role, goMarket }: { openScan: () => void; role: Role; goMarket: () => void }) {
   return (
     <header className="topbar">
       <div className="mobile-logo"><Logo /></div>
@@ -130,7 +139,7 @@ function Topbar({ openScan, role }: { openScan: () => void; role: Role }) {
       </label>
       <div className="top-actions">
         <button className="icon-button" aria-label="Notifications"><Icon name="bell" /><span className="notification-dot" /></button>
-        <Button onClick={openScan} className="top-scan"><Icon name="scan" />{role === "seller" ? "Add listing" : "Scan component"}</Button>
+        <Button onClick={role === "seller" ? openScan : goMarket} className="top-scan"><Icon name="scan" />{role === "seller" ? "Add listing" : "Browse products"}</Button>
       </div>
     </header>
   );
@@ -163,7 +172,7 @@ function ProjectCard({ project, open }: { project: typeof projects[number]; open
   );
 }
 
-function Dashboard({ openScan, goProjects, openProject, role }: { openScan: () => void; goProjects: () => void; openProject: () => void; role: Role }) {
+function Dashboard({ openScan, goProjects, openProject, role, market }: { market: Market; openScan: () => void; goProjects: () => void; openProject: () => void; role: Role }) {
   const isSeller = role === "seller";
   return (
     <>
@@ -191,15 +200,15 @@ function Dashboard({ openScan, goProjects, openProject, role }: { openScan: () =
         <div className="section-heading compact"><div><span className="overline">{isSeller ? "Your seller overview" : "Your circular impact"}</span><h2 id="impact-heading">{isSeller ? "Your components are in demand." : "Small parts. Real progress."}</h2></div><button>{isSeller ? "View seller report" : "View impact report"} <Icon name="arrow" className="size-4" /></button></div>
         <div className="stats-grid">
           {(isSeller ? [
-            ["box", "Active listings", "12", "3 viewed today", "mint"],
-            ["scale", "Waste diverted", "3.26 kg", "Estimated by item mass", "yellow"],
-            ["cart", "Orders & rentals", "7", "2 awaiting handover", "blue"],
-            ["wallet", "Revenue earned", "$248", "+$62 this month", "peach"],
+            ["box", "Active listings", String(market.listings.filter(l=>!l.archived&&l.quantity>0).length), "Published in this demo", "mint"],
+            ["scale", "Waste diverted", "Not verified", "See self-reported impact", "yellow"],
+            ["cart", "Orders & rentals", String(market.orders.length), "Shared demo orders", "blue"],
+            ["wallet", "Revenue earned", `₹${revenue(market).toLocaleString("en-IN")}`, "Completed demo orders", "peach"],
           ] : [
             ["box", "Components reused", "12", "+3 this month", "mint"],
             ["scale", "Waste diverted", "1.84 kg", "Estimated by item mass", "yellow"],
             ["wrench", "Projects enabled", "4", "2 in progress", "blue"],
-            ["wallet", "Saved by reuse", "$86", "vs. typical new prices", "peach"],
+            ["wallet", "Saved by reuse", "₹7,000", "Demo savings · INR", "peach"],
           ]).map(([icon, label, value, note, color]) => (
             <article className="stat-card" key={label}><span className={`stat-icon ${color}`}><Icon name={icon as IconName} /></span><div><p>{label}</p><strong>{value}</strong><small>{note}</small></div></article>
           ))}
@@ -220,10 +229,9 @@ function Dashboard({ openScan, goProjects, openProject, role }: { openScan: () =
   );
 }
 
-function AuthPage({ onContinue }: { onContinue: () => void }) {
+function AuthPage({ onContinue }: { onContinue: (mode: "login" | "signup", profile: Profile) => void }) {
   const [mode, setMode] = useState<"login" | "signup">("signup");
   const [profileFile, setProfileFile] = useState("");
-  const [idFile, setIdFile] = useState("");
   return (
     <main className="auth-page">
       <section className="auth-story">
@@ -242,10 +250,12 @@ function AuthPage({ onContinue }: { onContinue: () => void }) {
       </section>
       <section className="auth-form-wrap">
         <div className="auth-mobile-logo"><Logo /></div>
-        <form className="auth-card" onSubmit={(event) => { event.preventDefault(); onContinue(); }}>
+        <form className="auth-card" onSubmit={(event) => { event.preventDefault(); const inputs = event.currentTarget.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('.field-label input, .field-label select, .field-label textarea');
+          const values = Array.from(inputs).map(el => el.value);
+          onContinue(mode, mode === 'signup' ? { ...emptyProfile, name:values[0], dob:values[1], gender:values[2], profession:values[3], organization:values[4], mobile:values[5], email:values[6], address:values[8] } : {...emptyProfile, name:'Demo maker', email:values[0]}); }}>
           <span className="auth-kicker">{mode === "signup" ? "New to ReCircuit" : "Welcome back"}</span>
           <h2>{mode === "signup" ? "Create your profile" : "Log in to ReCircuit"}</h2>
-          <p>{mode === "signup" ? "Tell us a little about you before choosing your marketplace role." : "Enter your registered email and password to continue."}</p>
+          <p>{mode === "signup" ? "Tell us a little about you before choosing your marketplace role." : "Demo login only. No credentials are authenticated or stored."}</p>
           <div className="auth-tabs" role="tablist" aria-label="Authentication method">
             <button type="button" role="tab" aria-selected={mode === "signup"} className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Sign up</button>
             <button type="button" role="tab" aria-selected={mode === "login"} className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log in</button>
@@ -263,33 +273,24 @@ function AuthPage({ onContinue }: { onContinue: () => void }) {
               </div>
               <div className="form-grid">
                 <label className="field-label full-field">Full name<input required placeholder="Alex Morgan" autoComplete="name" /></label>
-                <label className="field-label">Date of birth<input required type="date" autoComplete="bday" /></label>
-                <label className="field-label">Gender<select required defaultValue=""><option value="" disabled>Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label>
-                <label className="field-label">Profession<input required placeholder="Electronics engineer" autoComplete="organization-title" /></label>
-                <label className="field-label">Organization<input required placeholder="Organization or independent" autoComplete="organization" /></label>
-                <label className="field-label">Mobile number<input required type="tel" placeholder="+1 555 012 3456" autoComplete="tel" /></label>
+                <label className="field-label">Date of birth (optional)<input type="date" autoComplete="bday" /></label>
+                <label className="field-label">Gender (optional)<select defaultValue=""><option value="" disabled>Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label>
+                <label className="field-label">Profession (optional)<input placeholder="Electronics engineer" autoComplete="organization-title" /></label>
+                <label className="field-label">Organization (optional)<input placeholder="Organization or independent" autoComplete="organization" /></label>
+                <label className="field-label">Mobile number (optional)<input type="tel" placeholder="+1 555 012 3456" autoComplete="tel" /></label>
                 <label className="field-label">Email address<input required type="email" placeholder="alex@example.com" autoComplete="email" /></label>
                 <label className="field-label full-field">Password<input required type="password" placeholder="At least 8 characters" minLength={8} autoComplete="new-password" /></label>
-                <label className="field-label full-field">Address<textarea required placeholder="Street, city, state, postal code" autoComplete="street-address" /></label>
+                <label className="field-label full-field">Address (optional)<textarea placeholder="Street, city, state, postal code" autoComplete="street-address" /></label>
               </div>
-              <label className={`id-upload ${idFile ? "uploaded" : ""}`}>
-                <input type="file" accept="image/*,.pdf" onChange={(event) => setIdFile(event.target.files?.[0]?.name ?? "")} />
-                <span><Icon name={idFile ? "check" : "box"} /></span>
-                <div><strong>{idFile ? "Test ID proof attached" : "Upload ID proof"}</strong><small>{idFile || "Demo verification only · Use a fake document for testing"}</small></div>
-                <em>{idFile ? "Replace" : "Choose file"}</em>
-              </label>
-              <div className="test-data-note"><Icon name="info" /><span><strong>Prototype notice:</strong> Do not upload a real identity document. This field is for fake testing data only.</span></div>
+
             </>
           ) : (
             <div className="login-fields">
-              <button type="button" className="social-button"><span>G</span>Continue with Google</button>
-              <div className="auth-divider"><span>or use email</span></div>
               <label className="field-label">Email address<input required type="email" placeholder="alex@example.com" autoComplete="email" /></label>
               <label className="field-label">Password<input required type="password" placeholder="Enter your password" minLength={8} autoComplete="current-password" /></label>
-              <button type="button" className="forgot-button">Forgot password?</button>
             </div>
           )}
-          <Button className="full-button">{mode === "signup" ? "Create profile & choose role" : "Log in"}<Icon name="arrow" /></Button>
+          <Button className="full-button">{mode === "signup" ? "Continue to contact verification" : "Log in"}<Icon name="arrow" /></Button>
           <p className="auth-switch">{mode === "signup" ? "Already registered?" : "Need a ReCircuit profile?"}<button type="button" onClick={() => setMode(mode === "signup" ? "login" : "signup")}>{mode === "signup" ? "Log in" : "Sign up"}</button></p>
           <small className="legal-copy">By continuing, you agree to ReCircuit’s Terms and Privacy Policy.</small>
         </form>
@@ -298,13 +299,34 @@ function AuthPage({ onContinue }: { onContinue: () => void }) {
   );
 }
 
+function WelcomePage({ start }: { start: () => void }) {
+  return <main className="role-page"><header className="role-header"><Logo /></header><section className="role-content"><span className="eyebrow">Welcome to ReCircuit</span><h1>Give every component another circuit.</h1><p>Discover projects for spare electronics, find missing parts, and keep useful components in circulation.</p><Button onClick={start}>Login / Sign Up <Icon name="arrow" /></Button><p className="legal-copy">Interactive UI prototype · Use fictional profile details.</p></section></main>;
+}
+
+function VerificationPage({ identity, next, back }: { identity: boolean; next: () => void; back: () => void }) {
+  const [code, setCode] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [error, setError] = useState("");
+  return <main className="role-page"><header className="role-header"><Logo /><button onClick={back}>Back</button></header><section className="role-content">
+    <span className="step-count">Step {identity ? 3 : 2} of 4 · DEMO</span>
+    <h1>{identity ? "Demo identity verification" : "Verify your contact"}</h1>
+    <p>{identity ? "Use the built-in fictional identity fixture. No real identity document is required." : "Email/mobile delivery is not connected. This demonstration does not verify ownership of your contact details."}</p>
+    <form className="auth-card" onSubmit={(event) => { event.preventDefault(); if (identity ? confirmed : code === "123456") next(); else setError(identity ? "Select the dummy fixture to continue." : "Enter the displayed demo code: 123456."); }}>
+      {identity ? <label className="field-label"><span><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /> Use DEMO-ID-001 (fictional test identity)</span></label> : <label className="field-label">Demo code: 123456<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={code} onChange={event => setCode(event.target.value)} autoComplete="off" /></label>}
+      {error && <p role="alert">{error}</p>}
+      <p className="test-data-note">{identity ? "DEMO KYC only. This does not establish verified real-world identity." : "Demo contact verification only. Connect Supabase Auth for real verification."}</p>
+      <Button className="full-button">{identity ? "Complete DEMO KYC & choose mode" : "Confirm demo code"}<Icon name="arrow" /></Button>
+    </form>
+  </section></main>;
+}
+
 function RolePage({ selectRole, back }: { selectRole: (role: Role) => void; back: () => void }) {
   const [selected, setSelected] = useState<Role | null>(null);
   return (
     <main className="role-page">
-      <header className="role-header"><Logo /><button onClick={back}>Sign out</button></header>
+      <header className="role-header"><Logo /><button onClick={back}>Back</button></header>
       <section className="role-content">
-        <span className="step-count">Step 2 of 2</span>
+        <span className="step-count">Step 4 of 4</span>
         <h1>How will you use ReCircuit?</h1>
         <p>Choose a starting workspace. You can switch roles later from your profile.</p>
         <div className="role-grid">
@@ -412,40 +434,69 @@ function Placeholder({ title }: { title: string }) {
   return <section className="placeholder"><span className="banner-icon"><Icon name="wrench" /></span><h1>{title}</h1><p>This prototype keeps the mandatory component-to-project reuse path front and center.</p><Button variant="secondary">Return to dashboard</Button></section>;
 }
 
-function MobileNav({ view, go, openScan }: { view: string; go: (view: string) => void; openScan: () => void }) {
+export function MobileNav({ view, go, openScan, role }: { view: string; go: (view: string) => void; openScan: () => void; role: Role }) {
   return (
     <nav className="mobile-nav" aria-label="Mobile navigation">
       <button className={view === "home" ? "active" : ""} onClick={() => go("home")}><Icon name="home" /><span>Home</span></button>
       <button className={view === "marketplace" ? "active" : ""} onClick={() => go("marketplace")}><Icon name="market" /><span>Market</span></button>
-      <button className="scan-fab" onClick={openScan} aria-label="Scan component"><span><Icon name="scan" /></span><small>Scan</small></button>
+      <button className="scan-fab" onClick={openScan} aria-label={role === "seller" ? "Add listing" : "Browse products"}><span><Icon name={role === "seller" ? "scan" : "market"} /></span><small>{role === "seller" ? "Add" : "Shop"}</small></button>
       <button className={view === "projects" ? "active" : ""} onClick={() => go("projects")}><Icon name="projects" /><span>Projects</span></button>
-      <button><Icon name="user" /><span>Profile</span></button>
+      <button onClick={() => go("profile")}><Icon name="user" /><span>Profile</span></button>
     </nav>
   );
 }
 
-export default function App() {
-  const [stage, setStage] = useState<"auth" | "role" | "app">("auth");
+function DemoApp() {
+  const [stage, setStage] = useState<"welcome" | "auth" | "contact" | "identity" | "role" | "app">("welcome");
   const [role, setRole] = useState<Role>("buyer");
+  const [demoOnboardingComplete, setDemoOnboardingComplete] = useState(false);
+  const [market, setMarket] = useState<Market>(() => { try { const raw = localStorage.getItem('recircuit-market-v1'); if(raw) { const parsed=JSON.parse(raw); if(Array.isArray(parsed.listings)&&Array.isArray(parsed.orders)) return parsed; } } catch {} return initialMarket; });
+  const [storageError, setStorageError] = useState('');
+  useEffect(() => { try { localStorage.setItem('recircuit-market-v1', JSON.stringify(market)); setStorageError(''); } catch {setStorageError('Browser storage is full or unavailable. Changes remain in this session.');} }, [market]);
+  const addListing = (listing: Parameters<typeof publish>[1]) => setMarket(current=>publish(current,listing));
+  const placeOrder = (id:string,q:number,d:number) => { const next=reserve(market,id,q,d,crypto.randomUUID()); setMarket(next); };
+  const archiveListing = (id:string) => setMarket(m=>({...m,listings:m.listings.map(l=>l.id===id?{...l,archived:!l.archived}:l)}));
+  const [profile, setProfile] = useState<Profile>(emptyProfile);
+  const [reuseGrams, setReuseGrams] = useState(0);
+  const recordReuse = (grams: number) => setReuseGrams(value => value + grams);
   const [view, setView] = useState("home");
+  const [manualListing,setManualListing]=useState(false);
+  const [marketSearch,setMarketSearch]=useState('');
   const [scanOpen, setScanOpen] = useState(false);
   const openProject = () => setView("detail");
-  if (stage === "auth") return <AuthPage onContinue={() => setStage("role")} />;
-  if (stage === "role") return <RolePage back={() => setStage("auth")} selectRole={(nextRole) => { setRole(nextRole); setView("home"); setStage("app"); }} />;
+  if (stage === "welcome") return <WelcomePage start={() => setStage("auth")} />;
+  if (stage === "auth") return <AuthPage onContinue={(mode, details) => { if (!demoOnboardingComplete || mode === "signup") setProfile(details); setStage(mode === "login" && demoOnboardingComplete ? "app" : "contact"); }} />;
+  if (stage === "contact") return <VerificationPage key="contact" identity={false} back={() => setStage("auth")} next={() => setStage("identity")} />;
+  if (stage === "identity") return <VerificationPage key="identity" identity back={() => setStage("contact")} next={() => setStage("role")} />;
+  if (stage === "role") return <RolePage back={() => setStage("identity")} selectRole={(nextRole) => { setRole(nextRole); setDemoOnboardingComplete(true); setView("home"); setStage("app"); }} />;
   return (
     <div className={`app-shell role-${role}`}>
       <Sidebar view={view} go={setView} role={role} signOut={() => setStage("auth")} />
       <div className="main-shell">
-        <Topbar openScan={() => setScanOpen(true)} role={role} />
+        <p className="test-data-note" role="status">UI demo · contact verification and KYC are simulated · dashboard data is illustrative.</p>
+        <Topbar openScan={() => setScanOpen(true)} role={role} goMarket={()=>setView('marketplace')} />
+        <div className="feature-actions" style={{padding:'0 24px'}}><button className="button button-secondary" onClick={()=>{setRole(role==='seller'?'buyer':'seller');setView('home');}}>Switch demo workspace to {role==='seller'?'buyer':'seller'}</button>{storageError&&<p role="alert">{storageError}</p>}</div>
         <main>
-          {view === "home" && <Dashboard role={role} openScan={() => setScanOpen(true)} goProjects={() => setView("projects")} openProject={openProject} />}
-          {view === "projects" && <Projects openProject={openProject} />}
+          {view === "home" && role === "seller" && <SellerHome market={market} name={profile.name} grams={reuseGrams} scan={()=>{setManualListing(false);setScanOpen(true);}} manual={()=>{setManualListing(true);setScanOpen(true);}} projects={()=>setView('projects')} />}
+          {(view === 'marketplace' || (view === 'home' && role === 'buyer')) && <Products key={marketSearch} search={marketSearch} market={market} order={placeOrder} archive={archiveListing} add={()=>setScanOpen(true)} />}
+          {view === 'listings' && role === 'seller' && <Products own market={market} order={placeOrder} archive={archiveListing} add={()=>setScanOpen(true)} />}
+          {view === 'orders' && <Orders market={market} role={role} confirm={id=>setMarket(m=>confirm(m,id,role))} cancel={id=>setMarket(m=>cancel(m,id))} />}
+          {view === 'revenue' && role === 'seller' && <Revenue market={market} />}
+          {view === 'components' && role === 'buyer' && <Components market={market} />}
+          {view === "projects" && <ProjectLibrary market={role==='seller'?market:{...market,listings:market.orders.filter(o=>o.status==='Completed').map(o=>({...market.listings.find(l=>l.id===o.listingId)!,id:o.id,name:o.name,quantity:o.quantity,archived:false}))}} find={name=>{setMarketSearch(name);setView('marketplace');}} />}
+          {['rentals','donations','history','handover'].includes(view) && <Orders filter={view==='rentals'?'Rent':view==='donations'?'Donate':view==='history'?'History':'Handover'} market={market} role={role} confirm={id=>setMarket(m=>confirm(m,id,role))} cancel={id=>setMarket(m=>cancel(m,id))} />}
+          {view === 'ewaste' && <EWaste />}
           {view === "detail" && <ProjectDetail back={() => setView("projects")} />}
-          {!["home", "projects", "detail"].includes(view) && <Placeholder title={view.charAt(0).toUpperCase() + view.slice(1)} />}
+          {view === "assistant" && <Assistant />}
+          {view === "impact" && <Impact grams={reuseGrams} record={recordReuse} />}
+          {view === "profile" && <ProfileEditor profile={profile} save={setProfile} />}
+          {!["home", "projects", "detail", "assistant", "impact", "profile", "marketplace", "listings", "orders", "revenue", "components", "rentals", "donations", "history", "handover", "ewaste"].includes(view) && <Placeholder title={view.charAt(0).toUpperCase() + view.slice(1)} />}
         </main>
       </div>
-      <MobileNav view={view} go={setView} openScan={() => setScanOpen(true)} />
-      {scanOpen && <ScanPanel close={() => setScanOpen(false)} openProject={openProject} />}
+      <MobileNav role={role} view={view} go={setView} openScan={() => role === "seller" ? setScanOpen(true) : setView("marketplace")} />
+      {scanOpen && <ComponentCapture manual={manualListing} projects={()=>setView("projects")} close={() => setScanOpen(false)} publish={addListing} />}
     </div>
   );
 }
+
+export default function App(){return supabase?<CloudApp/>:<DemoApp/>;}
